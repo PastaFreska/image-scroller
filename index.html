@@ -2,144 +2,104 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Reddit Image Feed</title>
+  <title>Scrolller Gallery</title>
   <style>
-    body {
-      background: #111;
-      color: #fff;
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 20px;
-    }
-    .controls {
-      margin: 20px auto;
-      width: 300px;
-      text-align: left;
-    }
-    .controls label {
-      display: block;
-      margin-top: 10px;
-    }
-    #gallery {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 15px;
-      margin-top: 30px;
-    }
-    .img-container img, .img-container video {
-      max-width: 300px;
-      max-height: 300px;
-      border-radius: 10px;
-      border: 2px solid #444;
-    }
+    body { background: #111; color: #eee; font-family: sans-serif; padding: 20px; text-align: center; }
+    .controls { margin-bottom: 20px; }
+    .controls label { display: block; margin: 10px 0; }
+    #gallery { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .item { max-width: 300px; max-height: 300px; overflow: hidden; border: 2px solid #444; border-radius: 8px; }
+    .item img, .item video { width: 100%; display: block; }
   </style>
 </head>
 <body>
-  <h1>Reddit Image & GIF Gallery</h1>
-
+  <h1>Scrolller Image & GIF Gallery</h1>
   <div class="controls">
     <label>
-      Number of images: <span id="imgCountLabel">5</span>
-      <input type="range" min="1" max="20" value="5" id="imgCountSlider">
+      Number of items: <span id="countLabel">6</span>
+      <input type="range" id="countSlider" min="1" max="20" value="6" oninput="updateCount()">
     </label>
-
     <label>
-      NSFW Ratio: <span id="nsfwRatioLabel">30%</span>
-      <input type="range" min="0" max="100" value="30" id="nsfwRatioSlider">
+      NSFW ratio: <span id="ratioLabel">30%</span>
+      <input type="range" id="ratioSlider" min="0" max="100" value="30" oninput="updateRatio()">
     </label>
-
-    <button onclick="loadImages()">🔄 Load Images</button>
+    <button onclick="loadGallery()">🔄 Load Gallery</button>
   </div>
-
-  <div id="gallery"></div>
+  <div id="gallery">Loading…</div>
 
   <script>
-    const sfwSubs = ['EarthPorn', 'aww', 'pics', 'wallpapers', 'AnimalsBeingBros'];
-    const nsfwSubs = ['NSFW_GIF', 'RealGirls', 'Hentai', 'nsfw', 'Ass'];
+    const sfwApi = 'https://api.scrolller.com/api/v2/category/sfw';
+    const nsfwApi = 'https://api.scrolller.com/api/v2/category/nsfw';
 
-    const imgCountSlider = document.getElementById('imgCountSlider');
-    const nsfwRatioSlider = document.getElementById('nsfwRatioSlider');
-    const imgCountLabel = document.getElementById('imgCountLabel');
-    const nsfwRatioLabel = document.getElementById('nsfwRatioLabel');
+    const countSlider = document.getElementById('countSlider');
+    const ratioSlider = document.getElementById('ratioSlider');
+    const countLabel = document.getElementById('countLabel');
+    const ratioLabel = document.getElementById('ratioLabel');
     const gallery = document.getElementById('gallery');
 
-    imgCountSlider.oninput = () => {
-      imgCountLabel.textContent = imgCountSlider.value;
-    };
-    nsfwRatioSlider.oninput = () => {
-      nsfwRatioLabel.textContent = nsfwRatioSlider.value + '%';
-    };
-
-    function getRandomSubreddit(isNSFW) {
-      const list = isNSFW ? nsfwSubs : sfwSubs;
-      return list[Math.floor(Math.random() * list.length)];
+    function updateCount() {
+      countLabel.textContent = countSlider.value;
     }
 
-    async function fetchPosts(subreddit) {
-      const url = `https://api.allorigins.win/raw?url=https://www.reddit.com/r/${subreddit}/hot.json?limit=25`;
+    function updateRatio() {
+      ratioLabel.textContent = ratioSlider.value + '%';
+    }
+
+    async function fetchItems(apiUrl) {
       try {
-        const res = await fetch(url);
+        const res = await fetch(apiUrl);
         const json = await res.json();
-        return json.data.children.map(c => c.data);
-      } catch (e) {
-        console.error(`Error fetching r/${subreddit}:`, e);
+        return json.posts || [];
+      } catch {
         return [];
       }
     }
 
-    function isImageOrGif(url) {
-      return /\.(jpg|jpeg|png|gif|gifv|webm)$/i.test(url);
-    }
+    async function loadGallery() {
+      gallery.innerHTML = 'Loading…';
 
-    async function loadImages() {
-      const numImages = parseInt(imgCountSlider.value);
-      const nsfwRatio = parseInt(nsfwRatioSlider.value);
-      gallery.innerHTML = '<p>Loading...</p>';
+      const total = parseInt(countSlider.value);
+      const nsfwRatio = parseInt(ratioSlider.value) / 100;
 
-      const images = [];
+      // Fetch a pool of posts once
+      const [sfwAll, nsfwAll] = await Promise.all([fetchItems(sfwApi), fetchItems(nsfwApi)]);
+      const items = [];
 
-      while (images.length < numImages) {
-        const isNSFW = Math.random() * 100 < nsfwRatio;
-        const subreddit = getRandomSubreddit(isNSFW);
-        const posts = await fetchPosts(subreddit);
-
-        const validPosts = posts.filter(p => {
-          return isImageOrGif(p.url) && (!p.over_18 || isNSFW);
-        });
-
-        for (const post of validPosts) {
-          if (images.length >= numImages) break;
-
-          const ext = post.url.split('.').pop();
-          const isVideo = ['gifv', 'webm'].includes(ext);
-
-          const element = document.createElement('div');
-          element.className = 'img-container';
-
-          if (isVideo) {
-            const video = document.createElement('video');
-            video.src = post.url.replace('.gifv', '.mp4');
-            video.autoplay = true;
-            video.loop = true;
-            video.muted = true;
-            video.playsInline = true;
-            element.appendChild(video);
-          } else {
-            const img = document.createElement('img');
-            img.src = post.url;
-            element.appendChild(img);
-          }
-
-          images.push(element);
-        }
+      // Randomly pick until we reach total count
+      while (items.length < total) {
+        const pickNSFW = Math.random() < nsfwRatio;
+        const source = pickNSFW ? nsfwAll : sfwAll;
+        if (!source.length) break;
+        const post = source[Math.floor(Math.random() * source.length)];
+        items.push(post);
       }
 
-      gallery.innerHTML = '';
-      images.forEach(imgEl => gallery.appendChild(imgEl));
+      gallery.innerHTML = ''; 
+      items.forEach(post => {
+        const container = document.createElement('div');
+        container.className = 'item';
+
+        // Handle GIFs and videos
+        if (post.isGif) {
+          const video = document.createElement('video');
+          video.src = post.gifUrl || post.url;
+          video.autoplay = video.loop = video.muted = true;
+          container.appendChild(video);
+        } else {
+          const img = document.createElement('img');
+          img.src = post.url;
+          container.appendChild(img);
+        }
+
+        gallery.appendChild(container);
+      });
     }
 
-    window.onload = loadImages;
+    window.onload = () => {
+      updateCount();
+      updateRatio();
+      loadGallery();
+    };
   </script>
 </body>
 </html>
