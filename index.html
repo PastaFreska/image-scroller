@@ -48,22 +48,28 @@
     }
 
     async function fetchImageFromSubreddit(subreddit) {
-      const url = `https://www.reddit.com/r/${subreddit}/random.json`;
-      try {
-        const response = await fetch(url);
-        const data = await response.json();
-        const post = data[0].data.children[0].data;
-        const imageUrl = post.url_overridden_by_dest || post.url;
-        if (imageUrl && (imageUrl.endsWith('.jpg') || imageUrl.endsWith('.png') || imageUrl.endsWith('.gif'))) {
-          return imageUrl;
-        } else {
-          return fetchImageFromSubreddit(subreddit); // Try again
-        }
-      } catch (error) {
-        console.log('Fetch error:', error);
-        return null;
+  const url = `https://www.reddit.com/r/${subreddit}/hot.json?limit=25`;
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    const posts = data.data.children;
+    
+    // Try up to 10 random posts from the list
+    for (let i = 0; i < 10; i++) {
+      const post = posts[Math.floor(Math.random() * posts.length)].data;
+      const imageUrl = post.url_overridden_by_dest || post.url;
+      if (imageUrl && /\.(jpg|jpeg|png|gif)$/i.test(imageUrl)) {
+        return imageUrl;
       }
     }
+
+    return null; // No valid image found
+  } catch (error) {
+    console.log('Fetch error:', error);
+    return null;
+  }
+}
+
 
     async function loadRandomImage() {
       const rand = Math.random() * 100;
