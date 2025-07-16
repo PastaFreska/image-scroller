@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Random Image Scroller</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #111;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    img {
+      max-width: 90vw;
+      max-height: 80vh;
+      border: 5px solid #333;
+      margin: 20px 0;
+    }
+    #ratio-label {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Random Image Scroller</h1>
+  <img id="image" src="" alt="Random image">
+  <button onclick="loadRandomImage()">🔄 Load New Image</button>
+  <br>
+  <label id="ratio-label">NSFW Ratio: <span id="ratio-value">30%</span></label><br>
+  <input type="range" min="0" max="100" value="30" id="ratio-slider" oninput="updateRatio()">
+
+  <script>
+    const sfwSubs = ['EarthPorn', 'aww', 'pics'];
+    const nsfwSubs = ['nsfw', 'RealGirls', 'NSFW_GIF', 'Hentai'];
+    let nsfwRatio = 30; // %
+
+    function getRandomItem(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function updateRatio() {
+      const slider = document.getElementById('ratio-slider');
+      nsfwRatio = parseInt(slider.value);
+      document.getElementById('ratio-value').textContent = nsfwRatio + '%';
+    }
+
+    async function fetchImageFromSubreddit(subreddit) {
+      const url = `https://www.reddit.com/r/${subreddit}/random.json`;
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        const post = data[0].data.children[0].data;
+        const imageUrl = post.url_overridden_by_dest || post.url;
+        if (imageUrl && (imageUrl.endsWith('.jpg') || imageUrl.endsWith('.png') || imageUrl.endsWith('.gif'))) {
+          return imageUrl;
+        } else {
+          return fetchImageFromSubreddit(subreddit); // Try again
+        }
+      } catch (error) {
+        console.log('Fetch error:', error);
+        return null;
+      }
+    }
+
+    async function loadRandomImage() {
+      const rand = Math.random() * 100;
+      const useNSFW = rand < nsfwRatio;
+      const sub = useNSFW ? getRandomItem(nsfwSubs) : getRandomItem(sfwSubs);
+      const imgUrl = await fetchImageFromSubreddit(sub);
+      if (imgUrl) {
+        document.getElementById('image').src = imgUrl;
+      } else {
+        alert("Failed to load image.");
+      }
+    }
+
+    // Load the first image on start
+    window.onload = loadRandomImage;
+  </script>
+</body>
+</html>
