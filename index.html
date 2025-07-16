@@ -2,89 +2,144 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Random Image Scroller</title>
+  <title>Reddit Image Feed</title>
   <style>
     body {
-      font-family: sans-serif;
       background: #111;
-      color: #eee;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
       padding: 20px;
     }
-    img {
-      max-width: 90vw;
-      max-height: 80vh;
-      border: 5px solid #333;
-      margin: 20px 0;
+    .controls {
+      margin: 20px auto;
+      width: 300px;
+      text-align: left;
     }
-    #ratio-label {
+    .controls label {
+      display: block;
       margin-top: 10px;
+    }
+    #gallery {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 30px;
+    }
+    .img-container img, .img-container video {
+      max-width: 300px;
+      max-height: 300px;
+      border-radius: 10px;
+      border: 2px solid #444;
     }
   </style>
 </head>
 <body>
-  <h1>Random Image Scroller</h1>
-  <img id="image" src="" alt="Random image">
-  <button onclick="loadRandomImage()">🔄 Load New Image</button>
-  <br>
-  <label id="ratio-label">NSFW Ratio: <span id="ratio-value">30%</span></label><br>
-  <input type="range" min="0" max="100" value="30" id="ratio-slider" oninput="updateRatio()">
+  <h1>Reddit Image & GIF Gallery</h1>
+
+  <div class="controls">
+    <label>
+      Number of images: <span id="imgCountLabel">5</span>
+      <input type="range" min="1" max="20" value="5" id="imgCountSlider">
+    </label>
+
+    <label>
+      NSFW Ratio: <span id="nsfwRatioLabel">30%</span>
+      <input type="range" min="0" max="100" value="30" id="nsfwRatioSlider">
+    </label>
+
+    <button onclick="loadImages()">🔄 Load Images</button>
+  </div>
+
+  <div id="gallery"></div>
 
   <script>
-    const sfwSubs = ['EarthPorn', 'aww', 'pics'];
-    const nsfwSubs = ['nsfw', 'RealGirls', 'NSFW_GIF', 'Hentai'];
-    let nsfwRatio = 30; // %
+    const sfwSubs = ['EarthPorn', 'aww', 'pics', 'wallpapers', 'AnimalsBeingBros'];
+    const nsfwSubs = ['NSFW_GIF', 'RealGirls', 'Hentai', 'nsfw', 'Ass'];
 
-    function getRandomItem(arr) {
-      return arr[Math.floor(Math.random() * arr.length)];
+    const imgCountSlider = document.getElementById('imgCountSlider');
+    const nsfwRatioSlider = document.getElementById('nsfwRatioSlider');
+    const imgCountLabel = document.getElementById('imgCountLabel');
+    const nsfwRatioLabel = document.getElementById('nsfwRatioLabel');
+    const gallery = document.getElementById('gallery');
+
+    imgCountSlider.oninput = () => {
+      imgCountLabel.textContent = imgCountSlider.value;
+    };
+    nsfwRatioSlider.oninput = () => {
+      nsfwRatioLabel.textContent = nsfwRatioSlider.value + '%';
+    };
+
+    function getRandomSubreddit(isNSFW) {
+      const list = isNSFW ? nsfwSubs : sfwSubs;
+      return list[Math.floor(Math.random() * list.length)];
     }
 
-    function updateRatio() {
-      const slider = document.getElementById('ratio-slider');
-      nsfwRatio = parseInt(slider.value);
-      document.getElementById('ratio-value').textContent = nsfwRatio + '%';
-    }
-
-    async function fetchImageFromSubreddit(subreddit) {
-  const url = `https://www.reddit.com/r/${subreddit}/hot.json?limit=25`;
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-    const posts = data.data.children;
-    
-    // Try up to 10 random posts from the list
-    for (let i = 0; i < 10; i++) {
-      const post = posts[Math.floor(Math.random() * posts.length)].data;
-      const imageUrl = post.url_overridden_by_dest || post.url;
-      if (imageUrl && /\.(jpg|jpeg|png|gif)$/i.test(imageUrl)) {
-        return imageUrl;
+    async function fetchPosts(subreddit) {
+      const url = `https://www.reddit.com/r/${subreddit}/hot.json?limit=25`;
+      try {
+        const res = await fetch(url);
+        const json = await res.json();
+        return json.data.children.map(c => c.data);
+      } catch (e) {
+        console.error(`Error fetching r/${subreddit}:`, e);
+        return [];
       }
     }
 
-    return null; // No valid image found
-  } catch (error) {
-    console.log('Fetch error:', error);
-    return null;
-  }
-}
-
-
-    async function loadRandomImage() {
-      const rand = Math.random() * 100;
-      const useNSFW = rand < nsfwRatio;
-      const sub = useNSFW ? getRandomItem(nsfwSubs) : getRandomItem(sfwSubs);
-      const imgUrl = await fetchImageFromSubreddit(sub);
-      if (imgUrl) {
-        document.getElementById('image').src = imgUrl;
-      } else {
-        alert("Failed to load image.");
-      }
+    function isImageOrGif(url) {
+      return /\.(jpg|jpeg|png|gif|gifv|webm)$/i.test(url);
     }
 
-    // Load the first image on start
-    window.onload = loadRandomImage;
+    async function loadImages() {
+      const numImages = parseInt(imgCountSlider.value);
+      const nsfwRatio = parseInt(nsfwRatioSlider.value);
+      gallery.innerHTML = '<p>Loading...</p>';
+
+      const images = [];
+
+      while (images.length < numImages) {
+        const isNSFW = Math.random() * 100 < nsfwRatio;
+        const subreddit = getRandomSubreddit(isNSFW);
+        const posts = await fetchPosts(subreddit);
+
+        const validPosts = posts.filter(p => {
+          return isImageOrGif(p.url) && (!p.over_18 || isNSFW);
+        });
+
+        for (const post of validPosts) {
+          if (images.length >= numImages) break;
+
+          const ext = post.url.split('.').pop();
+          const isVideo = ['gifv', 'webm'].includes(ext);
+
+          const element = document.createElement('div');
+          element.className = 'img-container';
+
+          if (isVideo) {
+            const video = document.createElement('video');
+            video.src = post.url.replace('.gifv', '.mp4');
+            video.autoplay = true;
+            video.loop = true;
+            video.muted = true;
+            video.playsInline = true;
+            element.appendChild(video);
+          } else {
+            const img = document.createElement('img');
+            img.src = post.url;
+            element.appendChild(img);
+          }
+
+          images.push(element);
+        }
+      }
+
+      gallery.innerHTML = '';
+      images.forEach(imgEl => gallery.appendChild(imgEl));
+    }
+
+    window.onload = loadImages;
   </script>
 </body>
 </html>
