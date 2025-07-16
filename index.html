@@ -77,7 +77,7 @@
     }
 
     async function fetchPosts(subreddit) {
-      const url = `https://www.reddit.com/r/${subreddit}/hot.json?limit=25`;
+      const url = `https://api.allorigins.win/raw?url=https://www.reddit.com/r/${subreddit}/hot.json?limit=25`;
       try {
         const res = await fetch(url);
         const json = await res.json();
